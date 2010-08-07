@@ -5,4 +5,8 @@ public enum TransactionType {
 	RECURRING_PAYMENT, RECURRING_PAYMENT_PROFILE_CREATED, SEND_MONEY,
 	SUBSCR_CANCEL, SUBSCR_EOT, SUBSCR_FAILED, SUBSCR_MODIFY, SUBSCR_PAYMENT,
 	SUBSCR_SIGNUP, VIRTUAL_TERMINAL, WEB_ACCEPT
+	
+	String toString() {
+		return super.toString().replaceAll("_", "-").toLowerCase()
+	}
 }

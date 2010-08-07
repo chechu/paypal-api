@@ -1,3 +1,6 @@
+import com.daureos.paypal.TransactionType
+import grails.util.GrailsNameUtils
+
 class PaypalApiGrailsPlugin {
     // the plugin version
     def version = "0.1"
@@ -34,7 +37,43 @@ Brief description of the plugin.
     }
 
     def doWithApplicationContext = { applicationContext ->
-        // TODO Implement post initialization spring config (optional)
+		String ipnHandlerServiceClassName
+		String defaultIpnHandlerServiceClassName = "IpnHandlerService"
+		def service, mc, declaredMethod
+		def methodName
+		
+		// Recovering the name of the ipn handler service
+		ipnHandlerServiceClassName = application.config.paypal?.ipnHanderService ?: defaultIpnHandlerServiceClassName
+		
+		log.debug("Searching the bean ${GrailsNameUtils.getPropertyName(ipnHandlerServiceClassName)}")
+
+		if(!applicationContext.containsBean(GrailsNameUtils.getPropertyName(ipnHandlerServiceClassName))) {
+			log.warn("Not IPN handler defined! (class name: ${ipnHandlerServiceClassName})")
+		} else {
+			service = applicationContext.getBean(GrailsNameUtils.getPropertyName(ipnHandlerServiceClassName))
+			log.debug("Using ${ipnHandlerServiceClassName} as IPN handler")
+			
+			// Adding needed methods
+			mc = service.getClass().metaClass
+			log.debug("Methods in ${ipnHandlerServiceClassName}: ${mc.methods.name}")
+			TransactionType.values().each {transactionType ->
+				methodName = "on${GrailsNameUtils.getClassNameRepresentation(transactionType.toString())}" as String // to be used in the contains method then
+				declaredMethod = mc.methods.name.contains(methodName)
+				
+				log.debug("Does the method ${methodName} exist in the IPN handler? ${declaredMethod}")
+				
+				if(!declaredMethod) {
+					// Adding an empty implementation
+					mc."${methodName}" = {log.debug("Nothing to do with a ${transactionType} IPN")}
+					
+					log.debug("Method ${methodName} added to the IPN handler")
+				}
+			}
+			mc.methodMissing = {name,args -> log.debug("Called the IPN Handler for an unknown event: ${name}")}
+			
+			// Setting the handler in the paypal service
+			applicationContext.getBean("paypalService").ipnHandler = service
+		}
     }
 
     def onChange = { event ->

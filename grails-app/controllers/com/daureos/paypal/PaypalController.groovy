@@ -53,8 +53,7 @@ class PaypalController {
 			def ipn = new IPN(params)
 			if(ipn.save(flush:true)) {
 				log.info("New IPN saved: ${ipn}")
-				// TODO Invoking the observers for this IPN
-				
+				paypalService.invokeIPNHandler(ipn)
 				render "OK" // Paypal needs a response, otherwise it will send the notification several times!
 			} else {
 				log.error("Error saving a new IPN: ${ipn}")

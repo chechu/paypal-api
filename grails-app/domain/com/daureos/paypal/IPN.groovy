@@ -8,7 +8,7 @@ import grails.converters.JSON
  * @author jesus.lanchas
  *
  */
-class IPN {
+public class IPN {
 	
 	static mapping = {
 		table 'paypal_ipn'

@@ -1,6 +1,7 @@
 package com.daureos.paypal
 
 import org.springframework.beans.factory.InitializingBean
+import grails.util.GrailsNameUtils
 
 import com.paypal.sdk.core.nvp.NVPDecoder
 import com.paypal.sdk.core.nvp.NVPEncoder
@@ -20,7 +21,6 @@ class PaypalService implements InitializingBean {
 	public static final String CURRENCY_CODE = "EUR"
 	public static final String MAXFAILEDPAYMENTS = "1"
 	public static final String AUTOBILLAMT = "AddToNextBilling" // The alternative is NoAutoBill
-	public static final String IPN_HANDLER_SERVICE_NAME = "ipnHandlerService"
 	
 	// Attributes	
 	private NVPCallerServices caller = null
@@ -28,6 +28,9 @@ class PaypalService implements InitializingBean {
 	private String currencyCode
 	private String maxFaliedPayments
 	private String autobillAmt
+	
+	// The IPN handler
+	def ipnHandler
 	
 	/**
 	* It initializes the attribute caller with the config data needed.
@@ -54,11 +57,6 @@ class PaypalService implements InitializingBean {
 			maxFaliedPayments = grailsApplication.config.grails.paypal?.MAXFAILEDPAYMENTS ?: MAXFAILEDPAYMENTS
 			
 			autobillAmt = grailsApplication.config.grails.paypal?.AUTOBILLAMT ?: AUTOBILLAMT
-			
-			// The handler of the IPN's
-			def serviceName = grailsApplication.config.paypal?.ipnHanderService ?: IPN_HANDLER_SERVICE_NAME
-			def service = grailsApplication.mainContext
-			// TODO Sacar service como atributo y llamarlo desde invokeIPNHandlers
 		}
 	}
 	
@@ -214,8 +212,14 @@ class PaypalService implements InitializingBean {
 	 * This method invokes the right method (according to the IPN parameter) in the
 	 * right service (according to the configuration).
 	 */
-	public void invokeIPNHandlers(IPN ipn) {
-		// TODO Llamar a service.on${ipnType} si existe
+	public void invokeIPNHandler(ipn) {
+		if(!ipnHandler) {
+			log.debug("IPNHandler NOT defined, nothing to do")
+		} else {
+			log.debug("IPNHandler defined")
+			def methodName = "on${GrailsNameUtils.getClassNameRepresentation(ipn.transactionType.toString())}"
+			ipnHandler."${methodName}"(ipn)
+		}
 	}
 	
 	/**
@@ -272,6 +276,26 @@ class PaypalService implements InitializingBean {
 	 */
 	private boolean successResponse(decoder) {
 		return decoder && (decoder.ACK == "Success" || decoder.ACK == "SuccessWithWarning")
+	}
+	
+	/**
+	 * This method adds to the args (if it doesn't exist) a new field NOTIFYURL with
+	 * the url (without encoding it) where Paypal will notify events sending IPN messages.
+	 * 
+	 * By default the url will be created with the controller name 'paypal' and the action
+	 * name 'notify'. The plugin provides a default implementation for this action.
+	 */
+	private void setNotifyUrl(args) {
+		def g = new org.codehaus.groovy.grails.plugins.web.taglib.ApplicationTagLib()
+		def cName, aName
+		
+		cName = grailsApplication.config.grails.paypal?.notifyController ?: 'paypal'
+		aName = grailsApplication.config.grails.paypal?.notifyAction ?: 'notify'
+		
+		if(!args.NOTIFYURL) {
+			args.NOTIFYURL = g.createLink(absolute: true, controller: cName, action: aName) as String
+			log.debug("New NOTIFYURL defined: ${args.NOTIFYURL}")
+		}
 	}
 }
 
