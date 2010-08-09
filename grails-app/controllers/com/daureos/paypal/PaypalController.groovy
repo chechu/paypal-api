@@ -7,7 +7,7 @@ package com.daureos.paypal
  */
 class PaypalController {
 	
-	static allowedMethods = [notify: 'POST']
+	//static allowedMethods = [notify: 'POST']
 	
 	// Injected by grails
 	def paypalService
@@ -39,23 +39,25 @@ class PaypalController {
 		log.debug "Got response from PayPal IPN $result"
 
 		if (result != 'VERIFIED') {
-			log.debug "Error with PayPal IPN response: [$result]"
+			log.warn "Error with PayPal IPN response: [$result]"
 		} else if (params.receiver_email != login) {
 			// OK, the IPN was sent by Paypal ... but not for us
 			log.warn """WARNING: receiver_email parameter received from PayPal does not match configured e-mail. This request is possibly fraudulent!
 	REQUEST INFO: ${params}
 				"""
-		} else if(IPN.findByTxnId(params.txn_id)) {
+		} else if(params.txn_id && IPN.findByTxnId(params.txn_id)) {
 			log.warn """WARNING: Request tried to re-use and old PayPal transaction id. This request is possibly fraudulent!
 	REQUEST INFO: ${params} """
 		} else {
 			// The IPN is new and it is for us
-			def ipn = new IPN(params)
+			def ipn = new IPN()
+			ipn.populateFromPaypal(params)
 			if(ipn.save(flush:true)) {
-				log.info("New IPN saved: ${ipn}")
+				log.debug("New IPN saved: ${ipn}")
 				paypalService.invokeIPNHandler(ipn)
 				render "OK" // Paypal needs a response, otherwise it will send the notification several times!
 			} else {
+				ipn.errors.each {log.error(it)}
 				log.error("Error saving a new IPN: ${ipn}")
 			}
 		}
