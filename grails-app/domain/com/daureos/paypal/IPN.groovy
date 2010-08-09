@@ -16,9 +16,6 @@ public class IPN {
 	
 	static transients = ['asMap']
 	
-	// The default constructor
-	public IPN(){}
-	
 	//Auto timestamping
 	Date dateCreated
 	Date lastUpdated
